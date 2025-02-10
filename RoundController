@@ -1,5 +1,5 @@
 -------------------------------------------
--- RoundController Script (Multiple Safe Platforms, No Cash)
+-- RoundController Script 
 -------------------------------------------
 local PlatformsFolder = workspace:WaitForChild("Platforms")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
