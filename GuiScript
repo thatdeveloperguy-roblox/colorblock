@@ -1,0 +1,11 @@
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local colorChangedEvent = ReplicatedStorage:WaitForChild("ColorChangedEvent")
+
+local screenGui = script.Parent
+local colorLabel = screenGui:WaitForChild("ColorLabel")
+
+-- Update the label when the safe color changes.
+colorChangedEvent.OnClientEvent:Connect(function(chosenColorName)
+	colorLabel.Text = "Safe Color: " .. chosenColorName
+	-- (Optional) you could add some animation or a timer here.
+end)
