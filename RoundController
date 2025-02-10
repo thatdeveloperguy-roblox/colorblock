@@ -1,0 +1,135 @@
+-------------------------------------------
+-- RoundController Script (Multiple Safe Platforms, No Cash)
+-------------------------------------------
+local PlatformsFolder = workspace:WaitForChild("Platforms")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+
+-- Create (or get) a RemoteEvent to notify clients about the safe color.
+local colorChangedEvent = ReplicatedStorage:FindFirstChild("ColorChangedEvent")
+if not colorChangedEvent then
+	colorChangedEvent = Instance.new("RemoteEvent")
+	colorChangedEvent.Name = "ColorChangedEvent"
+	colorChangedEvent.Parent = ReplicatedStorage
+end
+
+local preRoundDelay = 5   -- Time for players to read the GUI and move before platforms change.
+local roundDuration = 20  -- Duration (in seconds) of the active round.
+
+while true do
+	-- === Intermission: Restore all platforms so they are visible and collidable ===
+	for _, platform in ipairs(PlatformsFolder:GetChildren()) do
+		platform.Transparency = 0
+		platform.CanCollide = true
+	end
+	wait(2)  -- Brief pause so players can see the full map.
+
+	-- === Build a Unique List of Available Colors ===
+	local safeColorSet = {}
+	for _, platform in ipairs(PlatformsFolder:GetChildren()) do
+		safeColorSet[platform.Name] = true
+	end
+	local safeColors = {}
+	for color, _ in pairs(safeColorSet) do
+		table.insert(safeColors, color)
+	end
+
+	if #safeColors == 0 then
+		warn("No platforms found in the Platforms folder!")
+		wait(roundDuration)
+		continue  -- If no platforms exist, skip to the next iteration.
+	end
+
+	-- === Reset Winner Tracking for This Round ===
+	local roundWinners = {}
+	local function markWinner(player)
+		if roundWinners[player] then
+			return  -- Player already marked as a winner.
+		end
+		if #roundWinners < 3 then
+			table.insert(roundWinners, player)
+			roundWinners[player] = true
+			print("Player " .. player.Name .. " is marked as a winner!")
+		end
+	end
+
+	-- === Choose a Safe Color at Random ===
+	local chosenColorName = safeColors[math.random(1, #safeColors)]
+
+	-- Build a list of all platforms with that color.
+	local safePlatforms = {}
+	for _, platform in ipairs(PlatformsFolder:GetChildren()) do
+		if platform.Name == chosenColorName then
+			table.insert(safePlatforms, platform)
+		end
+	end
+
+	if #safePlatforms == 0 then
+		warn("No platforms found with the color: " .. chosenColorName)
+		wait(roundDuration)
+		continue
+	end
+
+	print("New round: Safe color is " .. chosenColorName)
+	colorChangedEvent:FireAllClients(chosenColorName)
+
+	-- === Pre-Round Delay: Let Players Read the GUI and Position Themselves ===
+	wait(preRoundDelay)
+
+	-- === Lock In the Round: Update Platform Properties ===
+	for _, platform in ipairs(PlatformsFolder:GetChildren()) do
+		if platform.Name == chosenColorName then
+			platform.Transparency = 0
+			platform.CanCollide = true
+		else
+			platform.Transparency = 1
+			platform.CanCollide = false
+		end
+	end
+
+	-- === Connect the Touched Events for All Safe Platforms ===
+	local safeConnections = {}
+	for _, safePlatform in ipairs(safePlatforms) do
+		local conn = safePlatform.Touched:Connect(function(hit)
+			local character = hit.Parent
+			local player = Players:GetPlayerFromCharacter(character)
+			if player then
+				markWinner(player)
+			end
+		end)
+		table.insert(safeConnections, conn)
+	end
+
+	-- === Check for Players Already Standing on a Safe Platform ===
+	for _, player in ipairs(Players:GetPlayers()) do
+		local character = player.Character
+		if character and character:FindFirstChild("HumanoidRootPart") then
+			local hrp = character.HumanoidRootPart
+			local touchingParts = hrp:GetTouchingParts()
+			for _, safePlatform in ipairs(safePlatforms) do
+				for _, part in ipairs(touchingParts) do
+					if part == safePlatform then
+						markWinner(player)
+						break
+					end
+				end
+			end
+		end
+	end
+
+	-- === Active Round Duration ===
+	wait(roundDuration)
+
+	-- Disconnect all Touched event connections.
+	for _, conn in ipairs(safeConnections) do
+		conn:Disconnect()
+	end
+
+	-- === End of Round: Restore All Platforms ===
+	for _, platform in ipairs(PlatformsFolder:GetChildren()) do
+		platform.Transparency = 0
+		platform.CanCollide = true
+	end
+
+	wait(2)  -- Short pause between rounds.
+end
